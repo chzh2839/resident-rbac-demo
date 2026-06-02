@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: resident-rbac-demo
+
+  datasource:
+    url: jdbc:h2:mem:rbacdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+jwt:
+  # 운영 환경에서는 반드시 환경 변수로 주입 (최소 32자 이상 권장)
+  secret: resident-rbac-demo-secret-key-for-development-only-change-in-production
+  validity-ms: 86400000   # 24시간
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.example.rbac: DEBUG
+    org.springframework.security: INFO
