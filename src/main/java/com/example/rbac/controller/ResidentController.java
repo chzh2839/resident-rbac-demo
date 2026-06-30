@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -35,7 +34,7 @@ public class ResidentController {
     @GetMapping("/profile")
     @PreAuthorize("hasRole('RESIDENT')")
     public ResponseEntity<ResidentProfileResponse> getMyProfile(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(residentService.getMyProfile(userDetails.getUsername()));
+            @AuthenticationPrincipal String username) {
+        return ResponseEntity.ok(residentService.getMyProfile(username));
     }
 }
