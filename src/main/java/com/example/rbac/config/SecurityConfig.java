@@ -1,7 +1,9 @@
 package com.example.rbac.config;
 
+import com.example.rbac.security.AuditLogFilter;
 import com.example.rbac.security.JwtAuthenticationFilter;
 import com.example.rbac.security.JwtTokenProvider;
+import com.example.rbac.service.AuditLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +37,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuditLogService auditLogService;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -72,6 +75,13 @@ public class SecurityConfig {
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtTokenProvider),
                 UsernamePasswordAuthenticationFilter.class
+            )
+
+            // 감사 로그 필터: JWT 필터 직후, FilterSecurityInterceptor 이전에 배치해
+            // /api/admin/** 호출의 성공(2xx)/거부(403)를 모두 기록한다
+            .addFilterAfter(
+                new AuditLogFilter(auditLogService),
+                JwtAuthenticationFilter.class
             );
 
         return http.build();

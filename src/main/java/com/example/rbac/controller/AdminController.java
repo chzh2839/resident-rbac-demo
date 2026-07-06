@@ -1,5 +1,6 @@
 package com.example.rbac.controller;
 
+import com.example.rbac.dto.AuditLogResponse;
 import com.example.rbac.dto.UserResponse;
 import com.example.rbac.service.AdminService;
 import lombok.RequiredArgsConstructor;
@@ -35,5 +36,15 @@ public class AdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         return ResponseEntity.ok(adminService.getAllUsers());
+    }
+
+    /**
+     * GET /api/admin/audit-logs
+     * 감사 로그 전체 조회 (ADMIN 전용, 최신순)
+     */
+    @GetMapping("/audit-logs")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AuditLogResponse>> getAuditLogs() {
+        return ResponseEntity.ok(adminService.getAuditLogs());
     }
 }

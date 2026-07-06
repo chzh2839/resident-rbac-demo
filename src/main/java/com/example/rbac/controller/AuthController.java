@@ -3,6 +3,7 @@ package com.example.rbac.controller;
 import com.example.rbac.dto.LoginRequest;
 import com.example.rbac.dto.LoginResponse;
 import com.example.rbac.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,8 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+                                                HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.login(request, httpRequest.getRemoteAddr()));
     }
 }

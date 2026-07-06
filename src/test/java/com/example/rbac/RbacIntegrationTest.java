@@ -1,6 +1,9 @@
 package com.example.rbac;
 
 import com.example.rbac.dto.LoginRequest;
+import com.example.rbac.entity.AuditAction;
+import com.example.rbac.entity.AuditLog;
+import com.example.rbac.repository.AuditLogRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -36,6 +40,9 @@ class RbacIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     // ============================================================
     // 1. 로그인 테스트
@@ -164,6 +171,83 @@ class RbacIntegrationTest {
     @DisplayName("토큰 없이 보호된 엔드포인트 접근 → 403")
     void unauthenticatedRequestForbidden() throws Exception {
         mockMvc.perform(get("/api/admin/users"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ============================================================
+    // 6. 감사 로그(Audit Log) 테스트
+    // ============================================================
+
+    @Test
+    @DisplayName("로그인 성공 → LOGIN_SUCCESS 감사 로그 기록")
+    void loginSuccessRecordsAuditLog() throws Exception {
+        getToken("admin", "admin123");
+
+        AuditLog latest = auditLogRepository.findAllByOrderByCreatedAtDescIdDesc().get(0);
+        assertThat(latest.getAction()).isEqualTo(AuditAction.LOGIN_SUCCESS);
+        assertThat(latest.getUsername()).isEqualTo("admin");
+        assertThat(latest.getStatusCode()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("로그인 실패 → LOGIN_FAILURE 감사 로그 기록")
+    void loginFailureRecordsAuditLog() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson("admin", "wrongpassword")))
+                .andExpect(status().isUnauthorized());
+
+        AuditLog latest = auditLogRepository.findAllByOrderByCreatedAtDescIdDesc().get(0);
+        assertThat(latest.getAction()).isEqualTo(AuditAction.LOGIN_FAILURE);
+        assertThat(latest.getUsername()).isEqualTo("admin");
+        assertThat(latest.getStatusCode()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("ADMIN → /api/admin/users 접근 성공 → ADMIN_API_ACCESS(200) 감사 로그 기록")
+    void adminAccessRecordsAuditLogSuccess() throws Exception {
+        String token = getToken("admin", "admin123");
+
+        mockMvc.perform(get("/api/admin/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        AuditLog latest = auditLogRepository.findAllByOrderByCreatedAtDescIdDesc().get(0);
+        assertThat(latest.getAction()).isEqualTo(AuditAction.ADMIN_API_ACCESS);
+        assertThat(latest.getUsername()).isEqualTo("admin");
+        assertThat(latest.getRequestUri()).isEqualTo("/api/admin/users");
+        assertThat(latest.getStatusCode()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("RESIDENT → /api/admin/users 접근 거부(403) → ADMIN_API_ACCESS(403) 감사 로그 기록")
+    void deniedAdminAccessRecordsAuditLog() throws Exception {
+        String token = getToken("resident1", "resident123");
+
+        mockMvc.perform(get("/api/admin/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+
+        AuditLog latest = auditLogRepository.findAllByOrderByCreatedAtDescIdDesc().get(0);
+        assertThat(latest.getAction()).isEqualTo(AuditAction.ADMIN_API_ACCESS);
+        assertThat(latest.getUsername()).isEqualTo("resident1");
+        assertThat(latest.getStatusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("ADMIN → GET /api/admin/audit-logs 접근 성공")
+    void adminCanAccessAuditLogs() throws Exception {
+        String token = getToken("admin", "admin123");
+
+        mockMvc.perform(get("/api/admin/audit-logs").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @DisplayName("MANAGER → GET /api/admin/audit-logs 접근 불가 (403)")
+    void managerCannotAccessAuditLogs() throws Exception {
+        String token = getToken("manager1", "manager123");
+
+        mockMvc.perform(get("/api/admin/audit-logs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
     }
 
