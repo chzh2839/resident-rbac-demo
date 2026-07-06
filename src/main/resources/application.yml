@@ -22,10 +22,16 @@ spring:
         format_sql: true
     open-in-view: false
 
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
 jwt:
   # 운영 환경에서는 반드시 환경 변수로 주입 (최소 32자 이상 권장)
   secret: resident-rbac-demo-secret-key-for-development-only-change-in-production
-  validity-ms: 86400000   # 24시간
+  validity-ms: 900000            # 15분 (Access Token)
+  refresh-validity-ms: 604800000 # 7일 (Refresh Token)
 
 server:
   port: 8080

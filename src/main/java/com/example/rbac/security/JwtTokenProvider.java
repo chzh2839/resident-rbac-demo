@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * JWT 토큰 생성 / 검증 유틸리티
@@ -33,6 +34,7 @@ public class JwtTokenProvider {
     public String createToken(String username, String role) {
         Date now = new Date();
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
                 .setSubject(username)
                 .claim("role", role)
                 .setIssuedAt(now)
@@ -49,6 +51,16 @@ public class JwtTokenProvider {
     /** 토큰에서 role 추출 */
     public String getRole(String token) {
         return parseClaims(token).get("role", String.class);
+    }
+
+    /** 토큰에서 jti(고유 ID) 추출 */
+    public String getJti(String token) {
+        return parseClaims(token).getId();
+    }
+
+    /** 토큰 만료 시각 추출 */
+    public Date getExpiration(String token) {
+        return parseClaims(token).getExpiration();
     }
 
     /** 토큰 유효성 검증 */

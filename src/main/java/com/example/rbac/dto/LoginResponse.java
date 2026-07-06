@@ -8,11 +8,12 @@ import lombok.Getter;
 @AllArgsConstructor
 public class LoginResponse {
     private String accessToken;
+    private String refreshToken;
     private String tokenType;
     private String role;
     private String username;
 
-    public static LoginResponse of(String token, String role, String username) {
-        return new LoginResponse(token, "Bearer", role, username);
+    public static LoginResponse of(String accessToken, String refreshToken, String role, String username) {
+        return new LoginResponse(accessToken, refreshToken, "Bearer", role, username);
     }
 }

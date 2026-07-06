@@ -4,6 +4,7 @@ import com.example.rbac.dto.LoginRequest;
 import com.example.rbac.entity.AuditAction;
 import com.example.rbac.entity.AuditLog;
 import com.example.rbac.repository.AuditLogRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -252,6 +253,102 @@ class RbacIntegrationTest {
     }
 
     // ============================================================
+    // 7. Refresh Token / 로그아웃 테스트
+    // ============================================================
+
+    @Test
+    @DisplayName("로그인 응답에 refreshToken 포함")
+    void loginResponseIncludesRefreshToken() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson("admin", "admin123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.refreshToken").exists());
+    }
+
+    @Test
+    @DisplayName("유효한 refreshToken → /api/auth/refresh 성공, 새 accessToken 발급")
+    void refreshWithValidTokenIssuesNewAccessToken() throws Exception {
+        JsonNode loginBody = login("admin", "admin123");
+        String originalAccessToken = loginBody.get("accessToken").asText();
+        String originalRefreshToken = loginBody.get("refreshToken").asText();
+
+        MvcResult refreshResult = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshJson(originalRefreshToken)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode refreshBody = objectMapper.readTree(refreshResult.getResponse().getContentAsString());
+        assertThat(refreshBody.get("accessToken").asText()).isNotEqualTo(originalAccessToken);
+        assertThat(refreshBody.get("refreshToken").asText()).isNotEqualTo(originalRefreshToken);
+    }
+
+    @Test
+    @DisplayName("이미 사용(회전)된 refreshToken 재사용 → 401")
+    void reusedRefreshTokenRejected() throws Exception {
+        JsonNode loginBody = login("admin", "admin123");
+        String originalRefreshToken = loginBody.get("refreshToken").asText();
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshJson(originalRefreshToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshJson(originalRefreshToken)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("알 수 없는 refreshToken → 401")
+    void unknownRefreshTokenRejected() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshJson("garbage-token-value")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("로그아웃 → 이후 같은 accessToken으로 보호된 엔드포인트 접근 시 403")
+    void logoutBlacklistsAccessToken() throws Exception {
+        String token = getToken("admin", "admin123");
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/users")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("로그아웃 이후 같은 로그인 세션의 refreshToken도 거부됨")
+    void logoutRevokesRefreshToken() throws Exception {
+        JsonNode loginBody = login("admin", "admin123");
+        String accessToken = loginBody.get("accessToken").asText();
+        String refreshToken = loginBody.get("refreshToken").asText();
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshJson(refreshToken)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("토큰 없이 로그아웃 시도 → 403")
+    void logoutWithoutTokenForbidden() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ============================================================
     // Helper
     // ============================================================
 
@@ -266,11 +363,26 @@ class RbacIntegrationTest {
         return objectMapper.readTree(body).get("accessToken").asText();
     }
 
+    private JsonNode login(String username, String password) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson(username, password)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
     private String loginJson(String username, String password) throws Exception {
         return objectMapper.writeValueAsString(
                 new LoginRequestHelper(username, password));
     }
 
+    private String refreshJson(String refreshToken) throws Exception {
+        return objectMapper.writeValueAsString(new RefreshRequestHelper(refreshToken));
+    }
+
     // 테스트용 내부 헬퍼 클래스 (record 사용)
     record LoginRequestHelper(String username, String password) {}
+
+    record RefreshRequestHelper(String refreshToken) {}
 }

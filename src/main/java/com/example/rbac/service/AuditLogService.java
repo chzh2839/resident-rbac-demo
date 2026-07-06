@@ -25,6 +25,7 @@ public class AuditLogService {
 
     private static final int LOGIN_SUCCESS_STATUS = 200;
     private static final int LOGIN_FAILURE_STATUS = 401;
+    private static final int LOGOUT_STATUS = 200;
 
     private final AuditLogRepository auditLogRepository;
 
@@ -36,6 +37,11 @@ public class AuditLogService {
     public void recordLoginFailure(String attemptedUsername, String ipAddress) {
         save(attemptedUsername, AuditAction.LOGIN_FAILURE, "POST", "/api/auth/login", LOGIN_FAILURE_STATUS, ipAddress);
         log.warn("[AUDIT] LOGIN_FAILURE attemptedUsername={} ip={}", attemptedUsername, ipAddress);
+    }
+
+    public void recordLogout(String username, String ipAddress) {
+        save(username, AuditAction.LOGOUT, "POST", "/api/auth/logout", LOGOUT_STATUS, ipAddress);
+        log.info("[AUDIT] LOGOUT username={} ip={}", username, ipAddress);
     }
 
     public void recordAdminAccess(String username, String httpMethod, String requestUri, int statusCode, String ipAddress) {

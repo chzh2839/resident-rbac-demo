@@ -4,6 +4,7 @@ import com.example.rbac.security.AuditLogFilter;
 import com.example.rbac.security.JwtAuthenticationFilter;
 import com.example.rbac.security.JwtTokenProvider;
 import com.example.rbac.service.AuditLogService;
+import com.example.rbac.service.TokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,6 +39,7 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditLogService auditLogService;
+    private final TokenService tokenService;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -53,8 +55,10 @@ public class SecurityConfig {
 
             // URL 패턴 기반 접근 제어
             .authorizeHttpRequests(auth -> auth
-                // 공개 엔드포인트
-                .requestMatchers("/api/auth/**").permitAll()
+                // 공개 엔드포인트 (로그인/리프레시는 JWT 인증 이전 단계라 permitAll)
+                .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
+                // 로그아웃은 현재 Access Token을 검증해야 하므로 인증 필요
+                .requestMatchers("/api/auth/logout").authenticated()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
 
@@ -73,7 +77,7 @@ public class SecurityConfig {
 
             // JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 배치
             .addFilterBefore(
-                new JwtAuthenticationFilter(jwtTokenProvider),
+                new JwtAuthenticationFilter(jwtTokenProvider, tokenService),
                 UsernamePasswordAuthenticationFilter.class
             )
 
